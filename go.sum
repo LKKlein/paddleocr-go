@@ -1,0 +1,8 @@
+github.com/LKKlein/gocv v0.25.0 h1:i+q95E3bijiJKuT+sW6p7ti75yKFPQT1vrl+ft0u5AA=
+github.com/LKKlein/gocv v0.25.0/go.mod h1:MP408EL7eakRU3vzjsozzfELSX7HDDGdMpWANV1IOHY=
+github.com/LKKlein/gocv v0.26.0 h1:p3Pw7e5e1Rmd9HS41m1Fkg98+AfkVstFbXg2s0u1ZJU=
+github.com/LKKlein/gocv v0.26.0/go.mod h1:MP408EL7eakRU3vzjsozzfELSX7HDDGdMpWANV1IOHY=
+github.com/LKKlein/gocv v0.27.0 h1:JGNBMa2HY7HC0VlVHB4gdFjoc9NlyyrQvlUdBMWWSYw=
+github.com/LKKlein/gocv v0.27.0/go.mod h1:MP408EL7eakRU3vzjsozzfELSX7HDDGdMpWANV1IOHY=
+github.com/ctessum/go.clipper v0.0.0-20200522184404-9c744fa3e86c h1:VXCsVlam0R2Yl7VET2GxZBPdOa7gFRexyhfWb9v9QtM=
+github.com/ctessum/go.clipper v0.0.0-20200522184404-9c744fa3e86c/go.mod h1:KRMo3PCsooJP3LmCwKI76dkd7f3ki3zwYLHR7Iwbi5k=
