@@ -133,9 +133,12 @@ func clsResize(img gocv.Mat, resizeShape []int) gocv.Mat {
 	return img
 }
 
-func crnnResize(img gocv.Mat, resizeShape []int, whRatio float64) gocv.Mat {
+func crnnResize(img gocv.Mat, resizeShape []int, whRatio float64, charType string) gocv.Mat {
 	imgH := resizeShape[1]
-	imgW := int(32 * whRatio)
+	imgW := resizeShape[2]
+	if charType == "ch" {
+		imgW = int(32 * whRatio)
+	}
 	h, w := img.Rows(), img.Cols()
 	ratio := float64(w) / float64(h)
 	var resizeW int
@@ -145,5 +148,8 @@ func crnnResize(img gocv.Mat, resizeShape []int, whRatio float64) gocv.Mat {
 		resizeW = int(math.Ceil(float64(imgH) * ratio))
 	}
 	gocv.Resize(img, &img, image.Pt(resizeW, imgH), 0, 0, gocv.InterpolationLinear)
+	if resizeW < imgW {
+		gocv.CopyMakeBorder(img, &img, 0, 0, 0, imgW-resizeW, gocv.BorderConstant, color.RGBA{0, 0, 0, 0})
+	}
 	return img
 }

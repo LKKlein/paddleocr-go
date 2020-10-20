@@ -1,8 +1,13 @@
 package core
 
 import (
+	"io"
 	"log"
+	"net/http"
 	"os"
+	"path/filepath"
+	"regexp"
+	"strings"
 
 	"github.com/LKKlein/gocv"
 )
@@ -91,4 +96,54 @@ func maxi(data []int) int {
 		}
 	}
 	return v
+}
+
+func DownloadFile(filepath string, url string) error {
+	resp, err := http.Get(url)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	out, err := os.Create(filepath)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+
+	_, err = io.Copy(out, resp.Body)
+	log.Println("[download_file] from: ", url, " to: ", filepath)
+	return err
+}
+
+func IsPathExist(path string) bool {
+	if _, err := os.Stat(path); err == nil {
+		return true
+	} else if os.IsNotExist(err) {
+		return false
+	}
+	return false
+}
+
+func DownloadModel(modelDir string, modelPath string) (string, error) {
+	if modelPath != "" && (strings.HasPrefix(modelPath, "http://") ||
+		strings.HasPrefix(modelPath, "ftp://") || strings.HasPrefix(modelPath, "https://")) {
+		reg := regexp.MustCompile("^(http|https|ftp)://[^/]+/(.+)")
+		suffix := reg.FindStringSubmatch(modelPath)[2]
+		if strings.HasPrefix(suffix, "tpflow/") {
+			suffix = suffix[7:]
+		}
+		outPath := filepath.Join(modelDir, suffix)
+		outDir := filepath.Dir(outPath)
+		if !IsPathExist(outDir) {
+			os.MkdirAll(outDir, os.ModePerm)
+		}
+
+		err := DownloadFile(outPath, modelPath)
+		if err != nil {
+			return "", err
+		}
+		return outPath, nil
+	}
+	return modelPath, nil
 }
