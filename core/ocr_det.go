@@ -2,24 +2,15 @@ package core
 
 import (
 	"log"
-	"paddleocr-go/paddle"
 	"time"
 
 	"github.com/LKKlein/gocv"
 )
 
 type DBDetector struct {
+	*PaddleModel
 	preProcess  DetPreProcess
 	postProcess DetPostProcess
-	predictor   *paddle.Predictor
-	input       *paddle.ZeroCopyTensor
-	output      *paddle.ZeroCopyTensor
-
-	useGPU     bool
-	deviceID   int
-	initGPUMem int
-	numThreads int
-	useMKLDNN  bool
 }
 
 func NewDBDetector(modelDir string, args map[string]interface{}) *DBDetector {
@@ -29,60 +20,30 @@ func NewDBDetector(modelDir string, args map[string]interface{}) *DBDetector {
 	unClipRatio := getFloat64(args, "det_db_unclip_ratio", 2.0)
 
 	detector := &DBDetector{
-		useGPU:      getBool(args, "use_gpu", false),
-		deviceID:    getInt(args, "gpu_id", 0),
-		initGPUMem:  getInt(args, "gpu_mem", 1000),
-		numThreads:  getInt(args, "num_threads", 6),
-		useMKLDNN:   getBool(args, "use_mkldnn", false),
+		PaddleModel: NewPaddleModel(args),
 		preProcess:  NewDBProcess(make([]int, 0), maxSideLen),
 		postProcess: NewDBPostProcess(thresh, boxThresh, unClipRatio),
 	}
-	detector.loadModel(modelDir)
+	detector.LoadModel(modelDir)
 	return detector
 }
 
-func (d *DBDetector) loadModel(modelDir string) {
-	config := paddle.NewAnalysisConfig()
-	config.SetModel(modelDir+"/model", modelDir+"/params")
-	if d.useGPU {
-		config.EnableUseGpu(d.initGPUMem, d.deviceID)
-	} else {
-		config.DisableGpu()
-		config.SetCpuMathLibraryNumThreads(d.numThreads)
-		if d.useMKLDNN {
-			config.EnableMkldnn()
-		}
-	}
-
-	config.EnableMemoryOptim()
-	// config.DisableGlogInfo()
-	config.SwitchIrOptim(true)
-
-	// false for zero copy tensor
-	config.SwitchUseFeedFetchOps(false)
-	config.SwitchSpecifyInputNames(true)
-
-	d.predictor = paddle.NewPredictor(config)
-	d.input = d.predictor.GetInputTensors()[0]
-	d.output = d.predictor.GetOutputTensors()[0]
-}
-
-func (d *DBDetector) Run(img gocv.Mat) [][][]int {
+func (det *DBDetector) Run(img gocv.Mat) [][][]int {
 	oriH := img.Rows()
 	oriW := img.Cols()
-	data, resizeH, resizeW := d.preProcess.Run(img)
+	data, resizeH, resizeW := det.preProcess.Run(img)
 	st := time.Now()
-	d.input.SetValue(data)
-	d.input.Reshape([]int32{1, 3, int32(resizeH), int32(resizeW)})
+	det.input.SetValue(data)
+	det.input.Reshape([]int32{1, 3, int32(resizeH), int32(resizeW)})
 
-	d.predictor.SetZeroCopyInput(d.input)
-	d.predictor.ZeroCopyRun()
-	d.predictor.GetZeroCopyOutput(d.output)
+	det.predictor.SetZeroCopyInput(det.input)
+	det.predictor.ZeroCopyRun()
+	det.predictor.GetZeroCopyOutput(det.outputs[0])
 
 	log.Println("predict time: ", time.Since(st))
 
 	ratioH, ratioW := float64(resizeH)/float64(oriH), float64(resizeW)/float64(oriW)
-	boxes := d.postProcess.Run(d.output, oriH, oriW, ratioH, ratioW)
+	boxes := det.postProcess.Run(det.outputs[0], oriH, oriW, ratioH, ratioW)
 	elapse := time.Since(st)
 	log.Println("det_box num: ", len(boxes), ", time elapse: ", elapse)
 	return boxes

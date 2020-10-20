@@ -2,12 +2,60 @@ package core
 
 import (
 	"image"
-	"log"
 	"math"
+	"paddleocr-go/paddle"
 	"sort"
 
 	"github.com/LKKlein/gocv"
 )
+
+type PaddleModel struct {
+	predictor *paddle.Predictor
+	input     *paddle.ZeroCopyTensor
+	outputs   []*paddle.ZeroCopyTensor
+
+	useGPU     bool
+	deviceID   int
+	initGPUMem int
+	numThreads int
+	useMKLDNN  bool
+}
+
+func NewPaddleModel(args map[string]interface{}) *PaddleModel {
+	return &PaddleModel{
+		useGPU:     getBool(args, "use_gpu", false),
+		deviceID:   getInt(args, "gpu_id", 0),
+		initGPUMem: getInt(args, "gpu_mem", 1000),
+		numThreads: getInt(args, "num_threads", 6),
+		useMKLDNN:  getBool(args, "use_mkldnn", false),
+	}
+}
+
+func (model *PaddleModel) LoadModel(modelDir string) {
+	config := paddle.NewAnalysisConfig()
+	config.SetModel(modelDir+"/model", modelDir+"/params")
+	if model.useGPU {
+		config.EnableUseGpu(model.initGPUMem, model.deviceID)
+	} else {
+		config.DisableGpu()
+		config.SetCpuMathLibraryNumThreads(model.numThreads)
+		if model.useMKLDNN {
+			config.EnableMkldnn()
+		}
+	}
+
+	config.EnableMemoryOptim()
+	config.DisableGlogInfo()
+	config.SwitchIrOptim(true)
+
+	// false for zero copy tensor
+	config.SwitchUseFeedFetchOps(false)
+	config.SwitchSpecifyInputNames(true)
+
+	model.predictor = paddle.NewPredictor(config)
+	model.input = model.predictor.GetInputTensors()[0]
+	model.outputs = model.predictor.GetOutputTensors()
+}
 
 type OCRText struct {
 	bbox  [][]int
@@ -32,7 +80,7 @@ func NewTextPredictSystem(args map[string]interface{}) *TextPredictSystem {
 	return sys
 }
 
-func (t *TextPredictSystem) sortBoxes(boxes [][][]int) [][][]int {
+func (sys *TextPredictSystem) sortBoxes(boxes [][][]int) [][][]int {
 	sort.Slice(boxes, func(i, j int) bool {
 		if boxes[i][0][1] < boxes[j][0][1] {
 			return true
@@ -51,7 +99,7 @@ func (t *TextPredictSystem) sortBoxes(boxes [][][]int) [][][]int {
 	return boxes
 }
 
-func (t *TextPredictSystem) getRotateCropImage(img gocv.Mat, box [][]int) gocv.Mat {
+func (sys *TextPredictSystem) getRotateCropImage(img gocv.Mat, box [][]int) gocv.Mat {
 	boxX := []int{box[0][0], box[1][0], box[2][0], box[3][0]}
 	boxY := []int{box[0][1], box[1][1], box[2][1], box[3][1]}
 
@@ -91,33 +139,27 @@ func (t *TextPredictSystem) getRotateCropImage(img gocv.Mat, box [][]int) gocv.M
 	return dstimg
 }
 
-func (t *TextPredictSystem) Run(img gocv.Mat) []OCRText {
+func (sys *TextPredictSystem) Run(img gocv.Mat) []OCRText {
 	result := make([]OCRText, 0, 10)
 
 	srcimg := gocv.NewMat()
 	img.CopyTo(&srcimg)
-	boxes := t.detector.Run(img)
+	boxes := sys.detector.Run(img)
 	if len(boxes) == 0 {
 		return result
 	}
 
-	boxes = t.sortBoxes(boxes)
+	boxes = sys.sortBoxes(boxes)
 	cropimages := make([]gocv.Mat, len(boxes))
 	for i := 0; i < len(boxes); i++ {
 		tmpbox := make([][]int, len(boxes[i]))
 		copy(tmpbox, boxes[i])
-		cropimg := t.getRotateCropImage(srcimg, tmpbox)
-		// log.Println(cropimg.Rows(), cropimg.Cols(), cropimg.Channels())
+		cropimg := sys.getRotateCropImage(srcimg, tmpbox)
 		cropimages[i] = cropimg
 	}
-	// cropimages = make([]gocv.Mat, 1)
-	// cropimages[0] = img
-	if t.cls != nil {
-		var clsOut []ClsResult
-		var clsPredictTime int64
-		cropimages, clsOut, clsPredictTime = t.cls.Run(cropimages)
-		log.Println("cls num: ", len(clsOut), ", cls time elapse: ", clsPredictTime, "ms")
+	if sys.cls != nil {
+		cropimages = sys.cls.Run(cropimages)
 	}
-
-	return nil
+	recResult := sys.rec.Run(cropimages)
+	return recResult
 }

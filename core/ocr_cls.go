@@ -1,7 +1,7 @@
 package core
 
 import (
-	"paddleocr-go/paddle"
+	"log"
 	"reflect"
 	"time"
 
@@ -9,20 +9,11 @@ import (
 )
 
 type TextClassifier struct {
-	predictor *paddle.Predictor
-	input     *paddle.ZeroCopyTensor
-	outputs   []*paddle.ZeroCopyTensor
-
+	*PaddleModel
 	batchNum int
 	thresh   float64
 	shape    []int
 	labels   []string
-
-	useGPU     bool
-	deviceID   int
-	initGPUMem int
-	numThreads int
-	useMKLDNN  bool
 }
 
 type ClsResult struct {
@@ -36,52 +27,21 @@ func NewTextClassifier(modelDir string, args map[string]interface{}) *TextClassi
 		shapes = v.([]int)
 	}
 	cls := &TextClassifier{
-		batchNum: getInt(args, "cls_batch_num", 1),
-		thresh:   getFloat64(args, "cls_thresh", 0.9),
-		shape:    shapes,
-
-		useGPU:     getBool(args, "use_gpu", false),
-		deviceID:   getInt(args, "gpu_id", 0),
-		initGPUMem: getInt(args, "gpu_mem", 1000),
-		numThreads: getInt(args, "num_threads", 6),
-		useMKLDNN:  getBool(args, "use_mkldnn", false),
+		PaddleModel: NewPaddleModel(args),
+		batchNum:    getInt(args, "cls_batch_num", 1),
+		thresh:      getFloat64(args, "cls_thresh", 0.9),
+		shape:       shapes,
 	}
-	cls.loadModel(modelDir)
+	cls.LoadModel(modelDir)
 	return cls
 }
 
-func (t *TextClassifier) loadModel(modelDir string) {
-	config := paddle.NewAnalysisConfig()
-	config.SetModel(modelDir+"/model", modelDir+"/params")
-	if t.useGPU {
-		config.EnableUseGpu(t.initGPUMem, t.deviceID)
-	} else {
-		config.DisableGpu()
-		config.SetCpuMathLibraryNumThreads(t.numThreads)
-		if t.useMKLDNN {
-			config.EnableMkldnn()
-		}
-	}
-
-	config.EnableMemoryOptim()
-	// config.DisableGlogInfo()
-	config.SwitchIrOptim(true)
-
-	// false for zero copy tensor
-	config.SwitchUseFeedFetchOps(false)
-	config.SwitchSpecifyInputNames(true)
-
-	t.predictor = paddle.NewPredictor(config)
-	t.input = t.predictor.GetInputTensors()[0]
-	t.outputs = t.predictor.GetOutputTensors()
-}
-
-func (t *TextClassifier) Run(imgs []gocv.Mat) ([]gocv.Mat, []ClsResult, int64) {
-	batch := t.batchNum
+func (cls *TextClassifier) Run(imgs []gocv.Mat) []gocv.Mat {
+	batch := cls.batchNum
 	var clsTime int64 = 0
 	clsout := make([]ClsResult, len(imgs))
 	srcimgs := make([]gocv.Mat, len(imgs))
-	c, h, w := t.shape[0], t.shape[1], t.shape[2]
+	c, h, w := cls.shape[0], cls.shape[1], cls.shape[2]
 	for i := 0; i < len(imgs); i += batch {
 		j := i + batch
 		if len(imgs) < j {
@@ -93,33 +53,33 @@ func (t *TextClassifier) Run(imgs []gocv.Mat) ([]gocv.Mat, []ClsResult, int64) {
 			tmp := gocv.NewMat()
 			imgs[k].CopyTo(&tmp)
 			srcimgs[k] = tmp
-			img := clsResize(imgs[k], t.shape)
+			img := clsResize(imgs[k], cls.shape)
 			data := normPermute(img, []float32{0.5, 0.5, 0.5}, []float32{0.5, 0.5, 0.5}, 255.0)
 			copy(normImgs[(k-i)*c*h*w:], data)
 		}
 
 		st := time.Now()
-		t.input.SetValue(normImgs)
-		t.input.Reshape([]int32{int32(j - i), int32(c), int32(w), int32(w)})
+		cls.input.SetValue(normImgs)
+		cls.input.Reshape([]int32{int32(j - i), int32(c), int32(w), int32(w)})
 
-		t.predictor.SetZeroCopyInput(t.input)
-		t.predictor.ZeroCopyRun()
-		t.predictor.GetZeroCopyOutput(t.outputs[0])
-		t.predictor.GetZeroCopyOutput(t.outputs[1])
+		cls.predictor.SetZeroCopyInput(cls.input)
+		cls.predictor.ZeroCopyRun()
+		cls.predictor.GetZeroCopyOutput(cls.outputs[0])
+		cls.predictor.GetZeroCopyOutput(cls.outputs[1])
 
 		var probout [][]float32
 		var labelout []int64
-		outputVal0 := t.outputs[0].Value()
+		outputVal0 := cls.outputs[0].Value()
 		value0 := reflect.ValueOf(outputVal0)
-		if len(t.outputs[0].Shape()) == 2 {
+		if len(cls.outputs[0].Shape()) == 2 {
 			probout = value0.Interface().([][]float32)
 		} else {
 			labelout = value0.Interface().([]int64)
 		}
 
-		outputVal1 := t.outputs[1].Value()
+		outputVal1 := cls.outputs[1].Value()
 		value1 := reflect.ValueOf(outputVal1)
-		if len(t.outputs[1].Shape()) == 2 {
+		if len(cls.outputs[1].Shape()) == 2 {
 			probout = value1.Interface().([][]float32)
 		} else {
 			labelout = value1.Interface().([]int64)
@@ -133,10 +93,11 @@ func (t *TextClassifier) Run(imgs []gocv.Mat) ([]gocv.Mat, []ClsResult, int64) {
 				Label: label,
 			}
 
-			if label%2 == 1 && float64(score) > t.thresh {
+			if label%2 == 1 && float64(score) > cls.thresh {
 				gocv.Rotate(srcimgs[i+no], &srcimgs[i+no], gocv.Rotate180Clockwise)
 			}
 		}
 	}
-	return srcimgs, clsout, clsTime
+	log.Println("cls num: ", len(clsout), ", cls time elapse: ", clsTime, "ms")
+	return srcimgs
 }
