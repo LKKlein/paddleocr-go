@@ -10,6 +10,6 @@ func main() {
 	args["use_angle_cls"] = true
 	args["use_gpu"] = false
 	sys := core.NewTextPredictSystem(args)
-	img := core.ReadImage("/home/lvkun/projects/PaddleOCR/0.jpg")
+	img := core.ReadImage("test.jpg")
 	sys.Run(img)
 }
