@@ -58,9 +58,9 @@ func (model *PaddleModel) LoadModel(modelDir string) {
 }
 
 type OCRText struct {
-	bbox  [][]int
-	text  string
-	score float64
+	BBox  [][]int
+	Text  string
+	Score float64
 }
 
 type TextPredictSystem struct {
@@ -160,6 +160,6 @@ func (sys *TextPredictSystem) Run(img gocv.Mat) []OCRText {
 	if sys.cls != nil {
 		cropimages = sys.cls.Run(cropimages)
 	}
-	recResult := sys.rec.Run(cropimages)
+	recResult := sys.rec.Run(cropimages, boxes)
 	return recResult
 }

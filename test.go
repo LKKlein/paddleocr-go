@@ -1,6 +1,6 @@
 package main
 
-import "paddleocr-go/core"
+import "paddleocr-go/ocr"
 
 func main() {
 	args := make(map[string]interface{})
@@ -9,7 +9,7 @@ func main() {
 	args["rec_model_dir"] = "/home/lvkun/.paddleocr/rec/ch"
 	args["use_angle_cls"] = true
 	args["use_gpu"] = false
-	sys := core.NewTextPredictSystem(args)
-	img := core.ReadImage("test.jpg")
+	sys := ocr.NewTextPredictSystem(args)
+	img := ocr.ReadImage("test.jpg")
 	sys.Run(img)
 }

@@ -111,9 +111,7 @@ func (tensor *ZeroCopyTensor) DataType() PaddleDType {
 func (tensor *ZeroCopyTensor) SetValue(value interface{}) {
 	val := reflect.ValueOf(value)
 	shape, dtype := ShapeAndTypeOf(val)
-	// tensor.Reshape(shape)
 	num := numel(shape)
-	log.Println(shape, num)
 	length := C.size_t(SizeofDataType(dtype) * num)
 	if tensor.c.data.capacity < length {
 		if tensor.c.data.capacity != C.size_t(0) {
@@ -171,6 +169,21 @@ func (tensor *ZeroCopyTensor) Value() interface{} {
 	r := bytes.NewReader(slice)
 	DecodeTensor(r, tensor.Shape(), t, value)
 	return reflect.Indirect(value).Interface()
+}
+
+func (tensor *ZeroCopyTensor) Lod() []int {
+	size := int(tensor.c.lod.length) / 4
+	h := &reflect.SliceHeader{
+		Data: uintptr(unsafe.Pointer(tensor.c.lod.data)),
+		Len:  size,
+		Cap:  size,
+	}
+	lodVal := *(*[]C.int)(unsafe.Pointer(h))
+	val := make([]int, size)
+	for i := 0; i < size; i++ {
+		val[i] = int(lodVal[i])
+	}
+	return val
 }
 
 func Endian() binary.ByteOrder {

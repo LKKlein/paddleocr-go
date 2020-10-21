@@ -2,6 +2,7 @@ package ocr
 
 import (
 	"io"
+	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
@@ -98,7 +99,18 @@ func maxi(data []int) int {
 	return v
 }
 
-func DownloadFile(filepath string, url string) error {
+func argmax(arr []float32) (int, float32) {
+	max_value, index := arr[0], 0
+	for i, item := range arr {
+		if item > max_value {
+			max_value = item
+			index = i
+		}
+	}
+	return index, max_value
+}
+
+func downloadFile(filepath string, url string) error {
 	resp, err := http.Get(url)
 	if err != nil {
 		return err
@@ -116,7 +128,7 @@ func DownloadFile(filepath string, url string) error {
 	return err
 }
 
-func IsPathExist(path string) bool {
+func isPathExist(path string) bool {
 	if _, err := os.Stat(path); err == nil {
 		return true
 	} else if os.IsNotExist(err) {
@@ -125,7 +137,7 @@ func IsPathExist(path string) bool {
 	return false
 }
 
-func DownloadModel(modelDir string, modelPath string) (string, error) {
+func downloadModel(modelDir string, modelPath string) (string, error) {
 	if modelPath != "" && (strings.HasPrefix(modelPath, "http://") ||
 		strings.HasPrefix(modelPath, "ftp://") || strings.HasPrefix(modelPath, "https://")) {
 		reg := regexp.MustCompile("^(http|https|ftp)://[^/]+/(.+)")
@@ -135,15 +147,25 @@ func DownloadModel(modelDir string, modelPath string) (string, error) {
 		}
 		outPath := filepath.Join(modelDir, suffix)
 		outDir := filepath.Dir(outPath)
-		if !IsPathExist(outDir) {
+		if !isPathExist(outDir) {
 			os.MkdirAll(outDir, os.ModePerm)
 		}
 
-		err := DownloadFile(outPath, modelPath)
+		err := downloadFile(outPath, modelPath)
 		if err != nil {
 			return "", err
 		}
 		return outPath, nil
 	}
 	return modelPath, nil
+}
+
+func readLines2StringSlice(path string) []string {
+	content, err := ioutil.ReadFile(path)
+	if err != nil {
+		log.Println("read file error!")
+		return nil
+	}
+	lines := strings.Split(string(content), "\n")
+	return lines
 }
