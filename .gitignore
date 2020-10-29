@@ -1,4 +1,4 @@
-paddle_c/paddle
-paddle_c/third_party
-paddle_c/version.txt
+paddle_cxx/paddle
+paddle_cxx/third_party
+paddle_cxx/version.txt
 test

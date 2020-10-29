@@ -3,6 +3,7 @@ package ocr
 import (
 	"image"
 	"image/color"
+	"log"
 	"math"
 	"paddleocr-go/paddle"
 	"sort"
@@ -45,9 +46,9 @@ func (model *PaddleModel) LoadModel(modelDir string) {
 		}
 	}
 
-	config.EnableMemoryOptim()
+	// config.EnableMemoryOptim()
 	config.DisableGlogInfo()
-	config.SwitchIrOptim(true)
+	// config.SwitchIrOptim(true)
 
 	// false for zero copy tensor
 	config.SwitchUseFeedFetchOps(false)
@@ -156,5 +157,8 @@ func (sys *TextPredictSystem) Run(img gocv.Mat) []OCRText {
 		cropimages = sys.cls.Run(cropimages)
 	}
 	recResult := sys.rec.Run(cropimages, boxes)
+	for _, v := range recResult {
+		log.Println(v)
+	}
 	return recResult
 }

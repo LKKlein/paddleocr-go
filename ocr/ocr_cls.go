@@ -59,7 +59,7 @@ func (cls *TextClassifier) Run(imgs []gocv.Mat) []gocv.Mat {
 
 		st := time.Now()
 		cls.input.SetValue(normImgs)
-		cls.input.Reshape([]int32{int32(j - i), int32(c), int32(w), int32(w)})
+		cls.input.Reshape([]int32{int32(j - i), int32(c), int32(h), int32(w)})
 
 		cls.predictor.SetZeroCopyInput(cls.input)
 		cls.predictor.ZeroCopyRun()

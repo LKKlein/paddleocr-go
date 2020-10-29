@@ -1,7 +1,5 @@
 package paddle
 
-// #cgo CFLAGS: -I../paddle_c/paddle/include
-// #cgo LDFLAGS: -L${SRCDIR}/../paddle_c/paddle/lib -Wl,-rpath,$ORIGIN/paddle_c/paddle/lib -lpaddle_fluid_c
 // #include <stdbool.h>
 // #include <stdlib.h>
 // #include <string.h>
@@ -11,7 +9,6 @@ import "C"
 import (
 	"bytes"
 	"encoding/binary"
-	"log"
 	"reflect"
 	"runtime"
 	"unsafe"
@@ -134,7 +131,6 @@ func (tensor *ZeroCopyTensor) SetValue(value interface{}) {
 		C.memcpy(tensor.c.data.data, unsafe.Pointer(&data[0]), length)
 	case PaddleDType(FLOAT32):
 		data := val.Interface().([]float32)
-		log.Println(length)
 		C.memcpy(tensor.c.data.data, unsafe.Pointer(&data[0]), length)
 	}
 	tensor.c.dtype = C.PD_DataType(dtype)
@@ -171,18 +167,12 @@ func (tensor *ZeroCopyTensor) Value() interface{} {
 	return reflect.Indirect(value).Interface()
 }
 
-func (tensor *ZeroCopyTensor) Lod() []int {
-	size := int(tensor.c.lod.length) / 4
-	h := &reflect.SliceHeader{
-		Data: uintptr(unsafe.Pointer(tensor.c.lod.data)),
-		Len:  size,
-		Cap:  size,
-	}
-	lodVal := *(*[]C.int)(unsafe.Pointer(h))
-	val := make([]int, size)
-	for i := 0; i < size; i++ {
-		val[i] = int(lodVal[i])
-	}
+func (tensor *ZeroCopyTensor) Lod() []uint {
+	var val []uint
+	val_hdr := (*reflect.SliceHeader)(unsafe.Pointer(&val))
+	val_hdr.Data = uintptr(unsafe.Pointer(tensor.c.lod.data))
+	val_hdr.Len = int(tensor.c.lod.length / C.sizeof_size_t)
+	val_hdr.Cap = int(tensor.c.lod.length / C.sizeof_size_t)
 	return val
 }
 

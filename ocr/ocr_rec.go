@@ -24,7 +24,7 @@ func NewTextRecognizer(modelDir string, args map[string]interface{}) *TextRecogn
 	labelpath := getString(args, "rec_char_dict_path", "./config/ppocr_keys_v1.txt")
 	rec := &TextRecognizer{
 		PaddleModel: NewPaddleModel(args),
-		batchNum:    getInt(args, "rec_batch_num", 1),
+		batchNum:    getInt(args, "rec_batch_num", 30),
 		textLen:     getInt(args, "max_text_len", 25),
 		charType:    getString(args, "rec_char_type", "ch"),
 		shape:       shapes,
@@ -54,18 +54,20 @@ func (rec *TextRecognizer) Run(imgs []gocv.Mat, bboxes [][][]int) []OCRText {
 			}
 		}
 
+		// 前处理处处是坑
+		if rec.charType == "ch" {
+			w = int(32 * maxwhratio)
+		}
 		normimgs := make([]float32, (j-i)*c*h*w)
-		// normimgs := make([]float32, 0, (j-i)*c*h*w)
 		for k := i; k < j; k++ {
-			img := crnnResize(imgs[k], rec.shape, maxwhratio, rec.charType)
-			data := normPermute(img, []float32{0.5, 0.5, 0.5}, []float32{0.5, 0.5, 0.5}, 255.0)
+			data := crnnPreprocess(imgs[k], rec.shape, []float32{0.5, 0.5, 0.5},
+				[]float32{0.5, 0.5, 0.5}, 255.0, maxwhratio, rec.charType)
 			copy(normimgs[(k-i)*c*h*w:], data)
-			// normimgs = append(normimgs, data...)
 		}
 
 		st := time.Now()
 		rec.input.SetValue(normimgs)
-		rec.input.Reshape([]int32{int32(j - i), int32(c), int32(w), int32(w)})
+		rec.input.Reshape([]int32{int32(j - i), int32(c), int32(h), int32(w)})
 
 		rec.predictor.SetZeroCopyInput(rec.input)
 		rec.predictor.ZeroCopyRun()
@@ -74,11 +76,11 @@ func (rec *TextRecognizer) Run(imgs []gocv.Mat, bboxes [][][]int) []OCRText {
 
 		recIdxBatch := rec.outputs[0].Value().([][]int64)
 		recIdxLod := rec.outputs[0].Lod()
+		log.Println("rec lod: ", recIdxLod, "rec len: ", len(recIdxLod))
 
 		predictBatch := rec.outputs[1].Value().([][]float32)
 		predictLod := rec.outputs[1].Lod()
 		recTime += int64(time.Since(st).Milliseconds())
-		log.Println(recIdxBatch, predictBatch, recIdxLod, predictLod)
 
 		for rno := 0; rno < len(recIdxLod)-1; rno++ {
 			predIdx := make([]int, 0, 2)
