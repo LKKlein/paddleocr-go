@@ -2,6 +2,7 @@ package ocr
 
 import (
 	"image"
+	"image/color"
 	"math"
 	"paddleocr-go/paddle"
 	"sort"
@@ -100,16 +101,6 @@ func (sys *TextPredictSystem) sortBoxes(boxes [][][]int) [][][]int {
 }
 
 func (sys *TextPredictSystem) getRotateCropImage(img gocv.Mat, box [][]int) gocv.Mat {
-	boxX := []int{box[0][0], box[1][0], box[2][0], box[3][0]}
-	boxY := []int{box[0][1], box[1][1], box[2][1], box[3][1]}
-
-	left, right, top, bottom := mini(boxX), maxi(boxX), mini(boxY), maxi(boxY)
-	cropimg := img.Region(image.Rect(left, top, right, bottom))
-	for i := 0; i < len(box); i++ {
-		box[i][0] -= left
-		box[i][1] -= top
-	}
-
 	cropW := int(math.Sqrt(math.Pow(float64(box[0][0]-box[1][0]), 2) + math.Pow(float64(box[0][1]-box[1][1]), 2)))
 	cropH := int(math.Sqrt(math.Pow(float64(box[0][0]-box[3][0]), 2) + math.Pow(float64(box[0][1]-box[3][1]), 2)))
 	ptsstd := make([]image.Point, 4)
@@ -127,7 +118,8 @@ func (sys *TextPredictSystem) getRotateCropImage(img gocv.Mat, box [][]int) gocv
 	M := gocv.GetPerspectiveTransform(points, ptsstd)
 	defer M.Close()
 	dstimg := gocv.NewMat()
-	gocv.WarpPerspective(cropimg, &dstimg, M, image.Pt(cropW, cropH))
+	gocv.WarpPerspectiveWithParams(img, &dstimg, M, image.Pt(cropW, cropH),
+		gocv.InterpolationCubic, gocv.BorderReplicate, color.RGBA{0, 0, 0, 0})
 
 	if float64(dstimg.Rows()) >= float64(dstimg.Cols())*1.5 {
 		srcCopy := gocv.NewMat()
@@ -153,7 +145,10 @@ func (sys *TextPredictSystem) Run(img gocv.Mat) []OCRText {
 	cropimages := make([]gocv.Mat, len(boxes))
 	for i := 0; i < len(boxes); i++ {
 		tmpbox := make([][]int, len(boxes[i]))
-		copy(tmpbox, boxes[i])
+		for j := 0; j < len(tmpbox); j++ {
+			tmpbox[j] = make([]int, len(boxes[i][j]))
+			copy(tmpbox[j], boxes[i][j])
+		}
 		cropimg := sys.getRotateCropImage(srcimg, tmpbox)
 		cropimages[i] = cropimg
 	}

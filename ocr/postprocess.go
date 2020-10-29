@@ -5,7 +5,6 @@ import (
 	"image/color"
 	"math"
 	"paddleocr-go/paddle"
-	"reflect"
 	"sort"
 
 	"github.com/LKKlein/gocv"
@@ -237,9 +236,7 @@ func (d *DBPostProcess) filterTagDetRes(boxes [][][]int, oriH, oriW int) [][][]i
 }
 
 func (d *DBPostProcess) Run(output *paddle.ZeroCopyTensor, oriH, oriW int, ratioH, ratioW float64) [][][]int {
-	outputVal := output.Value()
-	value := reflect.ValueOf(outputVal)
-	v := value.Interface().([][][][]float32)
+	v := output.Value().([][][][]float32)
 
 	shape := output.Shape()
 	height, width := int(shape[2]), int(shape[3])

@@ -2,7 +2,6 @@ package ocr
 
 import (
 	"log"
-	"reflect"
 	"time"
 
 	"github.com/LKKlein/gocv"
@@ -69,20 +68,16 @@ func (cls *TextClassifier) Run(imgs []gocv.Mat) []gocv.Mat {
 
 		var probout [][]float32
 		var labelout []int64
-		outputVal0 := cls.outputs[0].Value()
-		value0 := reflect.ValueOf(outputVal0)
 		if len(cls.outputs[0].Shape()) == 2 {
-			probout = value0.Interface().([][]float32)
+			probout = cls.outputs[0].Value().([][]float32)
 		} else {
-			labelout = value0.Interface().([]int64)
+			labelout = cls.outputs[0].Value().([]int64)
 		}
 
-		outputVal1 := cls.outputs[1].Value()
-		value1 := reflect.ValueOf(outputVal1)
 		if len(cls.outputs[1].Shape()) == 2 {
-			probout = value1.Interface().([][]float32)
+			probout = cls.outputs[1].Value().([][]float32)
 		} else {
-			labelout = value1.Interface().([]int64)
+			labelout = cls.outputs[1].Value().([]int64)
 		}
 		clsTime += int64(time.Since(st).Milliseconds())
 

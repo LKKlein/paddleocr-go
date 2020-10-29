@@ -2,7 +2,6 @@ package ocr
 
 import (
 	"log"
-	"reflect"
 	"time"
 
 	"github.com/LKKlein/gocv"
@@ -56,10 +55,12 @@ func (rec *TextRecognizer) Run(imgs []gocv.Mat, bboxes [][][]int) []OCRText {
 		}
 
 		normimgs := make([]float32, (j-i)*c*h*w)
+		// normimgs := make([]float32, 0, (j-i)*c*h*w)
 		for k := i; k < j; k++ {
 			img := crnnResize(imgs[k], rec.shape, maxwhratio, rec.charType)
 			data := normPermute(img, []float32{0.5, 0.5, 0.5}, []float32{0.5, 0.5, 0.5}, 255.0)
 			copy(normimgs[(k-i)*c*h*w:], data)
+			// normimgs = append(normimgs, data...)
 		}
 
 		st := time.Now()
@@ -71,14 +72,10 @@ func (rec *TextRecognizer) Run(imgs []gocv.Mat, bboxes [][][]int) []OCRText {
 		rec.predictor.GetZeroCopyOutput(rec.outputs[0])
 		rec.predictor.GetZeroCopyOutput(rec.outputs[1])
 
-		outputVal0 := rec.outputs[0].Value()
-		value0 := reflect.ValueOf(outputVal0)
-		recIdxBatch := value0.Interface().([][]int64)
+		recIdxBatch := rec.outputs[0].Value().([][]int64)
 		recIdxLod := rec.outputs[0].Lod()
 
-		outputVal1 := rec.outputs[1].Value()
-		value1 := reflect.ValueOf(outputVal1)
-		predictBatch := value1.Interface().([][]float32)
+		predictBatch := rec.outputs[1].Value().([][]float32)
 		predictLod := rec.outputs[1].Lod()
 		recTime += int64(time.Since(st).Milliseconds())
 		log.Println(recIdxBatch, predictBatch, recIdxLod, predictLod)
