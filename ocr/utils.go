@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/LKKlein/gocv"
+	"gopkg.in/yaml.v3"
 )
 
 func getString(args map[string]interface{}, key string, dv string) string {
@@ -168,4 +169,34 @@ func readLines2StringSlice(path string) []string {
 	}
 	lines := strings.Split(string(content), "\n")
 	return lines
+}
+
+func ReadYaml(yamlPath string) (map[string]interface{}, error) {
+	data, err := ioutil.ReadFile(yamlPath)
+	if err != nil {
+		return nil, err
+	}
+	var body interface{}
+	if err := yaml.Unmarshal(data, &body); err != nil {
+		return nil, err
+	}
+
+	body = convertYaml2Map(body)
+	return body.(map[string]interface{}), nil
+}
+
+func convertYaml2Map(i interface{}) interface{} {
+	switch x := i.(type) {
+	case map[interface{}]interface{}:
+		m2 := map[string]interface{}{}
+		for k, v := range x {
+			m2[k.(string)] = convertYaml2Map(v)
+		}
+		return m2
+	case []interface{}:
+		for i, v := range x {
+			x[i] = convertYaml2Map(v)
+		}
+	}
+	return i
 }

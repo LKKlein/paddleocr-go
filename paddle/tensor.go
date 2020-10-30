@@ -11,7 +11,6 @@ import "C"
 import (
 	"bytes"
 	"encoding/binary"
-	"log"
 	"reflect"
 	"runtime"
 	"unsafe"
@@ -134,7 +133,6 @@ func (tensor *ZeroCopyTensor) SetValue(value interface{}) {
 		C.memcpy(tensor.c.data.data, unsafe.Pointer(&data[0]), length)
 	case PaddleDType(FLOAT32):
 		data := val.Interface().([]float32)
-		log.Println(length)
 		C.memcpy(tensor.c.data.data, unsafe.Pointer(&data[0]), length)
 	}
 	tensor.c.dtype = C.PD_DataType(dtype)
@@ -171,18 +169,12 @@ func (tensor *ZeroCopyTensor) Value() interface{} {
 	return reflect.Indirect(value).Interface()
 }
 
-func (tensor *ZeroCopyTensor) Lod() []int {
-	size := int(tensor.c.lod.length) / 4
-	h := &reflect.SliceHeader{
-		Data: uintptr(unsafe.Pointer(tensor.c.lod.data)),
-		Len:  size,
-		Cap:  size,
-	}
-	lodVal := *(*[]C.int)(unsafe.Pointer(h))
-	val := make([]int, size)
-	for i := 0; i < size; i++ {
-		val[i] = int(lodVal[i])
-	}
+func (tensor *ZeroCopyTensor) Lod() []uint {
+	var val []uint
+	valHdr := (*reflect.SliceHeader)(unsafe.Pointer(&val))
+	valHdr.Data = uintptr(unsafe.Pointer(tensor.c.lod.data))
+	valHdr.Len = int(tensor.c.lod.length / C.sizeof_size_t)
+	valHdr.Cap = int(tensor.c.lod.length / C.sizeof_size_t)
 	return val
 }
 

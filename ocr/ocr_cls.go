@@ -23,11 +23,13 @@ type ClsResult struct {
 func NewTextClassifier(modelDir string, args map[string]interface{}) *TextClassifier {
 	shapes := []int{3, 48, 192}
 	if v, ok := args["cls_image_shape"]; ok {
-		shapes = v.([]int)
+		for i, s := range v.([]interface{}) {
+			shapes[i] = s.(int)
+		}
 	}
 	cls := &TextClassifier{
 		PaddleModel: NewPaddleModel(args),
-		batchNum:    getInt(args, "cls_batch_num", 1),
+		batchNum:    getInt(args, "cls_batch_num", 30),
 		thresh:      getFloat64(args, "cls_thresh", 0.9),
 		shape:       shapes,
 	}
@@ -59,7 +61,7 @@ func (cls *TextClassifier) Run(imgs []gocv.Mat) []gocv.Mat {
 
 		st := time.Now()
 		cls.input.SetValue(normImgs)
-		cls.input.Reshape([]int32{int32(j - i), int32(c), int32(w), int32(w)})
+		cls.input.Reshape([]int32{int32(j - i), int32(c), int32(h), int32(w)})
 
 		cls.predictor.SetZeroCopyInput(cls.input)
 		cls.predictor.ZeroCopyRun()

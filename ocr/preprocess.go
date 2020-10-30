@@ -133,7 +133,8 @@ func clsResize(img gocv.Mat, resizeShape []int) gocv.Mat {
 	return img
 }
 
-func crnnResize(img gocv.Mat, resizeShape []int, whRatio float64, charType string) gocv.Mat {
+func crnnPreprocess(img gocv.Mat, resizeShape []int, mean []float32, std []float32,
+	scaleFactor float32, whRatio float64, charType string) []float32 {
 	imgH := resizeShape[1]
 	imgW := resizeShape[2]
 	if charType == "ch" {
@@ -148,8 +149,23 @@ func crnnResize(img gocv.Mat, resizeShape []int, whRatio float64, charType strin
 		resizeW = int(math.Ceil(float64(imgH) * ratio))
 	}
 	gocv.Resize(img, &img, image.Pt(resizeW, imgH), 0, 0, gocv.InterpolationLinear)
+
+	img.ConvertTo(&img, gocv.MatTypeCV32F)
+	img.DivideFloat(scaleFactor)
+	img.SubtractScalar(gocv.NewScalar(float64(mean[0]), float64(mean[1]), float64(mean[2]), 0))
+	img.DivideScalar(gocv.NewScalar(float64(std[0]), float64(std[1]), float64(std[2]), 0))
+	defer img.Close()
+
 	if resizeW < imgW {
 		gocv.CopyMakeBorder(img, &img, 0, 0, 0, imgW-resizeW, gocv.BorderConstant, color.RGBA{0, 0, 0, 0})
 	}
-	return img
+
+	c := gocv.Split(img)
+	data := make([]float32, img.Rows()*img.Cols()*img.Channels())
+	for i := 0; i < 3; i++ {
+		defer c[i].Close()
+		x, _ := c[i].DataPtrFloat32()
+		copy(data[i*img.Rows()*img.Cols():], x)
+	}
+	return data
 }

@@ -3,6 +3,7 @@ package ocr
 import (
 	"image"
 	"image/color"
+	"log"
 	"math"
 	"paddleocr-go/paddle"
 	"sort"
@@ -15,25 +16,31 @@ type PaddleModel struct {
 	input     *paddle.ZeroCopyTensor
 	outputs   []*paddle.ZeroCopyTensor
 
-	useGPU     bool
-	deviceID   int
-	initGPUMem int
-	numThreads int
-	useMKLDNN  bool
+	useGPU      bool
+	deviceID    int
+	initGPUMem  int
+	numThreads  int
+	useMKLDNN   bool
+	useTensorRT bool
+	useIROptim  bool
 }
 
 func NewPaddleModel(args map[string]interface{}) *PaddleModel {
 	return &PaddleModel{
-		useGPU:     getBool(args, "use_gpu", false),
-		deviceID:   getInt(args, "gpu_id", 0),
-		initGPUMem: getInt(args, "gpu_mem", 1000),
-		numThreads: getInt(args, "num_threads", 6),
-		useMKLDNN:  getBool(args, "use_mkldnn", false),
+		useGPU:      getBool(args, "use_gpu", false),
+		deviceID:    getInt(args, "gpu_id", 0),
+		initGPUMem:  getInt(args, "gpu_mem", 1000),
+		numThreads:  getInt(args, "num_cpu_threads", 6),
+		useMKLDNN:   getBool(args, "enable_mkldnn", false),
+		useTensorRT: getBool(args, "use_tensorrt", false),
+		useIROptim:  getBool(args, "ir_optim", true),
 	}
 }
 
 func (model *PaddleModel) LoadModel(modelDir string) {
 	config := paddle.NewAnalysisConfig()
+	config.DisableGlogInfo()
+
 	config.SetModel(modelDir+"/model", modelDir+"/params")
 	if model.useGPU {
 		config.EnableUseGpu(model.initGPUMem, model.deviceID)
@@ -45,9 +52,10 @@ func (model *PaddleModel) LoadModel(modelDir string) {
 		}
 	}
 
-	config.EnableMemoryOptim()
-	config.DisableGlogInfo()
-	config.SwitchIrOptim(true)
+	// config.EnableMemoryOptim()
+	if model.useIROptim {
+		config.SwitchIrOptim(true)
+	}
 
 	// false for zero copy tensor
 	config.SwitchUseFeedFetchOps(false)
@@ -70,7 +78,11 @@ type TextPredictSystem struct {
 	rec      *TextRecognizer
 }
 
-func NewTextPredictSystem(args map[string]interface{}) *TextPredictSystem {
+func NewTextPredictSystem(confFile string) *TextPredictSystem {
+	args, err := ReadYaml(confFile)
+	if err != nil {
+		log.Panicf("read conf file %v err. err: %v", confFile, err)
+	}
 	sys := &TextPredictSystem{
 		detector: NewDBDetector(getString(args, "det_model_dir", ""), args),
 		rec:      NewTextRecognizer(getString(args, "rec_model_dir", ""), args),
@@ -131,14 +143,16 @@ func (sys *TextPredictSystem) getRotateCropImage(img gocv.Mat, box [][]int) gocv
 	return dstimg
 }
 
-func (sys *TextPredictSystem) Run(img gocv.Mat) []OCRText {
-	result := make([]OCRText, 0, 10)
+func (sys *TextPredictSystem) DrawTextOnImage(img gocv.Mat, ocrResult []OCRText) {
 
+}
+
+func (sys *TextPredictSystem) Run(img gocv.Mat) []OCRText {
 	srcimg := gocv.NewMat()
 	img.CopyTo(&srcimg)
 	boxes := sys.detector.Run(img)
 	if len(boxes) == 0 {
-		return result
+		return nil
 	}
 
 	boxes = sys.sortBoxes(boxes)
@@ -156,5 +170,8 @@ func (sys *TextPredictSystem) Run(img gocv.Mat) []OCRText {
 		cropimages = sys.cls.Run(cropimages)
 	}
 	recResult := sys.rec.Run(cropimages, boxes)
+	for _, v := range recResult {
+		log.Println(v)
+	}
 	return recResult
 }
