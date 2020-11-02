@@ -33,6 +33,11 @@ func NewTextClassifier(modelDir string, args map[string]interface{}) *TextClassi
 		thresh:      getFloat64(args, "cls_thresh", 0.9),
 		shape:       shapes,
 	}
+	if checkModelExists(modelDir) {
+		modelDir, _ = downloadModel("./inference/cls", modelDir)
+	} else {
+		log.Panicf("cls model path: %v not exist! Please check!", modelDir)
+	}
 	cls.LoadModel(modelDir)
 	return cls
 }

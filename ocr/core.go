@@ -1,12 +1,20 @@
 package ocr
 
 import (
+	"bytes"
+	"encoding/json"
+	"errors"
 	"image"
 	"image/color"
+	"io"
 	"log"
 	"math"
+	"net/http"
 	"paddleocr-go/paddle"
+	"path"
+	"path/filepath"
 	"sort"
+	"strings"
 
 	"github.com/LKKlein/gocv"
 )
@@ -67,9 +75,9 @@ func (model *PaddleModel) LoadModel(modelDir string) {
 }
 
 type OCRText struct {
-	BBox  [][]int
-	Text  string
-	Score float64
+	BBox  [][]int `json:"bbox"`
+	Text  string  `json:"text"`
+	Score float64 `json:"score"`
 }
 
 type TextPredictSystem struct {
@@ -78,11 +86,7 @@ type TextPredictSystem struct {
 	rec      *TextRecognizer
 }
 
-func NewTextPredictSystem(confFile string) *TextPredictSystem {
-	args, err := ReadYaml(confFile)
-	if err != nil {
-		log.Panicf("read conf file %v err. err: %v", confFile, err)
-	}
+func NewTextPredictSystem(args map[string]interface{}) *TextPredictSystem {
 	sys := &TextPredictSystem{
 		detector: NewDBDetector(getString(args, "det_model_dir", ""), args),
 		rec:      NewTextRecognizer(getString(args, "rec_model_dir", ""), args),
@@ -143,10 +147,6 @@ func (sys *TextPredictSystem) getRotateCropImage(img gocv.Mat, box [][]int) gocv
 	return dstimg
 }
 
-func (sys *TextPredictSystem) DrawTextOnImage(img gocv.Mat, ocrResult []OCRText) {
-
-}
-
 func (sys *TextPredictSystem) Run(img gocv.Mat) []OCRText {
 	srcimg := gocv.NewMat()
 	img.CopyTo(&srcimg)
@@ -170,8 +170,90 @@ func (sys *TextPredictSystem) Run(img gocv.Mat) []OCRText {
 		cropimages = sys.cls.Run(cropimages)
 	}
 	recResult := sys.rec.Run(cropimages, boxes)
-	for _, v := range recResult {
-		log.Println(v)
-	}
 	return recResult
+}
+
+type OCRSystem struct {
+	args map[string]interface{}
+	tps  *TextPredictSystem
+}
+
+func NewOCRSystem(confFile string, a map[string]interface{}) *OCRSystem {
+	args, err := ReadYaml(confFile)
+	if err != nil {
+		log.Printf("Read config file %v failed! Please check. err: %v\n", confFile, err)
+		log.Println("Program will use default config.")
+		args = defaultArgs
+	}
+	for k, v := range a {
+		args[k] = v
+	}
+	return &OCRSystem{
+		args: args,
+		tps:  NewTextPredictSystem(args),
+	}
+}
+
+func (ocr *OCRSystem) StartServer(port string) {
+	http.HandleFunc("/ocr", ocr.predictHandler)
+	log.Println("OCR Server has been started on port :", port)
+	err := http.ListenAndServe(":"+port, nil)
+	if err != nil {
+		log.Panicf("http error! error: %v\n", err)
+	}
+}
+
+func (ocr *OCRSystem) predictHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != "POST" {
+		w.Write([]byte(errors.New("post method only").Error()))
+		return
+	}
+	r.ParseMultipartForm(32 << 20)
+	var buf bytes.Buffer
+	file, header, err := r.FormFile("image")
+	if err != nil {
+		w.Write([]byte(err.Error()))
+		return
+	}
+	defer file.Close()
+	ext := strings.ToLower(path.Ext(header.Filename))
+	if ext != ".jpg" && ext != ".png" {
+		w.Write([]byte(errors.New("only support image endswith jpg/png").Error()))
+		return
+	}
+
+	io.Copy(&buf, file)
+	img, err2 := gocv.IMDecode(buf.Bytes(), gocv.IMReadColor)
+	if err2 != nil {
+		w.Write([]byte(err2.Error()))
+		return
+	}
+	result := ocr.PredictOneImage(img)
+	if output, err3 := json.Marshal(result); err3 != nil {
+		w.Write([]byte(err3.Error()))
+	} else {
+		w.Write(output)
+	}
+}
+
+func (ocr *OCRSystem) PredictOneImage(img gocv.Mat) []OCRText {
+	return ocr.tps.Run(img)
+}
+
+func (ocr *OCRSystem) PredictDirImages(dirname string) map[string][]OCRText {
+	if dirname == "" {
+		return nil
+	}
+
+	imgs, _ := filepath.Glob(dirname + "/*.jpg")
+	tmpimgs, _ := filepath.Glob(dirname + "/*.png")
+	imgs = append(imgs, tmpimgs...)
+	results := make(map[string][]OCRText, len(imgs))
+	for i := 0; i < len(imgs); i++ {
+		imgname := imgs[i]
+		img := ReadImage(imgname)
+		res := ocr.PredictOneImage(img)
+		results[imgname] = res
+	}
+	return results
 }

@@ -36,6 +36,11 @@ func NewTextRecognizer(modelDir string, args map[string]interface{}) *TextRecogn
 		shape:       shapes,
 		labels:      labels,
 	}
+	if checkModelExists(modelDir) {
+		modelDir, _ = downloadModel("./inference/rec/ch", modelDir)
+	} else {
+		log.Panicf("rec model path: %v not exist! Please check!", modelDir)
+	}
 	rec.LoadModel(modelDir)
 	return rec
 }

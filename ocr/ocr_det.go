@@ -24,6 +24,11 @@ func NewDBDetector(modelDir string, args map[string]interface{}) *DBDetector {
 		preProcess:  NewDBProcess(make([]int, 0), maxSideLen),
 		postProcess: NewDBPostProcess(thresh, boxThresh, unClipRatio),
 	}
+	if checkModelExists(modelDir) {
+		modelDir, _ = downloadModel("./inference/det", modelDir)
+	} else {
+		log.Panicf("det model path: %v not exist! Please check!", modelDir)
+	}
 	detector.LoadModel(modelDir)
 	return detector
 }
