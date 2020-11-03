@@ -19,16 +19,27 @@ type TextRecognizer struct {
 func NewTextRecognizer(modelDir string, args map[string]interface{}) *TextRecognizer {
 	shapes := []int{3, 32, 320}
 	if v, ok := args["rec_image_shape"]; ok {
-		shapes = v.([]int)
+		for i, s := range v.([]interface{}) {
+			shapes[i] = s.(int)
+		}
 	}
 	labelpath := getString(args, "rec_char_dict_path", "./config/ppocr_keys_v1.txt")
+	labels := readLines2StringSlice(labelpath)
+	if getBool(args, "use_space_char", true) {
+		labels = append(labels, " ")
+	}
 	rec := &TextRecognizer{
 		PaddleModel: NewPaddleModel(args),
 		batchNum:    getInt(args, "rec_batch_num", 30),
-		textLen:     getInt(args, "max_text_len", 25),
+		textLen:     getInt(args, "max_text_length", 25),
 		charType:    getString(args, "rec_char_type", "ch"),
 		shape:       shapes,
-		labels:      append(readLines2StringSlice(labelpath), " "),
+		labels:      labels,
+	}
+	if checkModelExists(modelDir) {
+		modelDir, _ = downloadModel("./inference/rec/ch", modelDir)
+	} else {
+		log.Panicf("rec model path: %v not exist! Please check!", modelDir)
 	}
 	rec.LoadModel(modelDir)
 	return rec
@@ -54,7 +65,6 @@ func (rec *TextRecognizer) Run(imgs []gocv.Mat, bboxes [][][]int) []OCRText {
 			}
 		}
 
-		// 前处理处处是坑
 		if rec.charType == "ch" {
 			w = int(32 * maxwhratio)
 		}

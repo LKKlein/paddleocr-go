@@ -23,13 +23,20 @@ type ClsResult struct {
 func NewTextClassifier(modelDir string, args map[string]interface{}) *TextClassifier {
 	shapes := []int{3, 48, 192}
 	if v, ok := args["cls_image_shape"]; ok {
-		shapes = v.([]int)
+		for i, s := range v.([]interface{}) {
+			shapes[i] = s.(int)
+		}
 	}
 	cls := &TextClassifier{
 		PaddleModel: NewPaddleModel(args),
-		batchNum:    getInt(args, "cls_batch_num", 1),
+		batchNum:    getInt(args, "cls_batch_num", 30),
 		thresh:      getFloat64(args, "cls_thresh", 0.9),
 		shape:       shapes,
+	}
+	if checkModelExists(modelDir) {
+		modelDir, _ = downloadModel("./inference/cls", modelDir)
+	} else {
+		log.Panicf("cls model path: %v not exist! Please check!", modelDir)
 	}
 	cls.LoadModel(modelDir)
 	return cls

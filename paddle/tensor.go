@@ -169,10 +169,10 @@ func (tensor *ZeroCopyTensor) Value() interface{} {
 
 func (tensor *ZeroCopyTensor) Lod() []uint {
 	var val []uint
-	val_hdr := (*reflect.SliceHeader)(unsafe.Pointer(&val))
-	val_hdr.Data = uintptr(unsafe.Pointer(tensor.c.lod.data))
-	val_hdr.Len = int(tensor.c.lod.length / C.sizeof_size_t)
-	val_hdr.Cap = int(tensor.c.lod.length / C.sizeof_size_t)
+	valHdr := (*reflect.SliceHeader)(unsafe.Pointer(&val))
+	valHdr.Data = uintptr(unsafe.Pointer(tensor.c.lod.data))
+	valHdr.Len = int(tensor.c.lod.length / C.sizeof_size_t)
+	valHdr.Cap = int(tensor.c.lod.length / C.sizeof_size_t)
 	return val
 }
 

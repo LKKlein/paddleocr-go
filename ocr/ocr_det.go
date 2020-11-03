@@ -24,6 +24,11 @@ func NewDBDetector(modelDir string, args map[string]interface{}) *DBDetector {
 		preProcess:  NewDBProcess(make([]int, 0), maxSideLen),
 		postProcess: NewDBPostProcess(thresh, boxThresh, unClipRatio),
 	}
+	if checkModelExists(modelDir) {
+		modelDir, _ = downloadModel("./inference/det", modelDir)
+	} else {
+		log.Panicf("det model path: %v not exist! Please check!", modelDir)
+	}
 	detector.LoadModel(modelDir)
 	return detector
 }
@@ -40,11 +45,8 @@ func (det *DBDetector) Run(img gocv.Mat) [][][]int {
 	det.predictor.ZeroCopyRun()
 	det.predictor.GetZeroCopyOutput(det.outputs[0])
 
-	log.Println("predict time: ", time.Since(st))
-
 	ratioH, ratioW := float64(resizeH)/float64(oriH), float64(resizeW)/float64(oriW)
 	boxes := det.postProcess.Run(det.outputs[0], oriH, oriW, ratioH, ratioW)
-	elapse := time.Since(st)
-	log.Println("det_box num: ", len(boxes), ", time elapse: ", elapse)
+	log.Println("det_box num: ", len(boxes), ", time elapse: ", time.Since(st))
 	return boxes
 }

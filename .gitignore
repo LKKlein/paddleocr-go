@@ -1,4 +1,5 @@
 paddle_cxx/paddle
 paddle_cxx/third_party
 paddle_cxx/version.txt
-test
+inference/
+demo

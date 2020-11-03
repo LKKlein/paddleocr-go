@@ -1,16 +1,19 @@
 package ocr
 
 import (
+	"archive/tar"
 	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
+	"path"
 	"path/filepath"
 	"regexp"
 	"strings"
 
 	"github.com/LKKlein/gocv"
+	"gopkg.in/yaml.v3"
 )
 
 func getString(args map[string]interface{}, key string, dv string) string {
@@ -110,7 +113,18 @@ func argmax(arr []float32) (int, float32) {
 	return index, max_value
 }
 
-func downloadFile(filepath string, url string) error {
+func checkModelExists(modelPath string) bool {
+	if isPathExist(modelPath+"/model") && isPathExist(modelPath+"/params") {
+		return true
+	}
+	if strings.HasPrefix(modelPath, "http://") ||
+		strings.HasPrefix(modelPath, "ftp://") || strings.HasPrefix(modelPath, "https://") {
+		return true
+	}
+	return false
+}
+
+func downloadFile(filepath, url string) error {
 	resp, err := http.Get(url)
 	if err != nil {
 		return err
@@ -124,7 +138,7 @@ func downloadFile(filepath string, url string) error {
 	defer out.Close()
 
 	_, err = io.Copy(out, resp.Body)
-	log.Println("[download_file] from: ", url, " to: ", filepath)
+	log.Println("[download_file] from:", url, " to:", filepath)
 	return err
 }
 
@@ -137,27 +151,80 @@ func isPathExist(path string) bool {
 	return false
 }
 
-func downloadModel(modelDir string, modelPath string) (string, error) {
+func downloadModel(modelDir, modelPath string) (string, error) {
 	if modelPath != "" && (strings.HasPrefix(modelPath, "http://") ||
 		strings.HasPrefix(modelPath, "ftp://") || strings.HasPrefix(modelPath, "https://")) {
 		reg := regexp.MustCompile("^(http|https|ftp)://[^/]+/(.+)")
 		suffix := reg.FindStringSubmatch(modelPath)[2]
-		if strings.HasPrefix(suffix, "tpflow/") {
-			suffix = suffix[7:]
-		}
 		outPath := filepath.Join(modelDir, suffix)
 		outDir := filepath.Dir(outPath)
 		if !isPathExist(outDir) {
 			os.MkdirAll(outDir, os.ModePerm)
 		}
 
-		err := downloadFile(outPath, modelPath)
-		if err != nil {
-			return "", err
+		if !isPathExist(outPath) {
+			err := downloadFile(outPath, modelPath)
+			if err != nil {
+				return "", err
+			}
+		}
+		if strings.HasSuffix(outPath, ".tar") {
+			_, f := path.Split(suffix)
+			nextDir := strings.TrimSuffix(f, ".tar")
+			finalPath := modelDir + "/" + nextDir
+			if !checkModelExists(finalPath) {
+				unTar(modelDir, outPath)
+			}
+			return finalPath, nil
 		}
 		return outPath, nil
 	}
 	return modelPath, nil
+}
+
+func unTar(dst, src string) (err error) {
+	fr, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer fr.Close()
+
+	tr := tar.NewReader(fr)
+	for {
+		hdr, err := tr.Next()
+
+		switch {
+		case err == io.EOF:
+			return nil
+		case err != nil:
+			return err
+		case hdr == nil:
+			continue
+		}
+
+		dstFileDir := filepath.Join(dst, hdr.Name)
+
+		switch hdr.Typeflag {
+		case tar.TypeDir:
+			if b := isPathExist(dstFileDir); !b {
+				if err := os.MkdirAll(dstFileDir, 0775); err != nil {
+					return err
+				}
+			}
+		case tar.TypeReg:
+			file, err := os.OpenFile(dstFileDir, os.O_CREATE|os.O_RDWR, os.FileMode(hdr.Mode))
+			if err != nil {
+				return err
+			}
+			_, err2 := io.Copy(file, tr)
+			if err2 != nil {
+				return err2
+			}
+			file.Close()
+		}
+	}
+
+	return nil
 }
 
 func readLines2StringSlice(path string) []string {
@@ -168,4 +235,34 @@ func readLines2StringSlice(path string) []string {
 	}
 	lines := strings.Split(string(content), "\n")
 	return lines
+}
+
+func ReadYaml(yamlPath string) (map[string]interface{}, error) {
+	data, err := ioutil.ReadFile(yamlPath)
+	if err != nil {
+		return nil, err
+	}
+	var body interface{}
+	if err := yaml.Unmarshal(data, &body); err != nil {
+		return nil, err
+	}
+
+	body = convertYaml2Map(body)
+	return body.(map[string]interface{}), nil
+}
+
+func convertYaml2Map(i interface{}) interface{} {
+	switch x := i.(type) {
+	case map[interface{}]interface{}:
+		m2 := map[string]interface{}{}
+		for k, v := range x {
+			m2[k.(string)] = convertYaml2Map(v)
+		}
+		return m2
+	case []interface{}:
+		for i, v := range x {
+			x[i] = convertYaml2Map(v)
+		}
+	}
+	return i
 }
