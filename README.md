@@ -108,7 +108,8 @@ source ~/.bashrc
 - 验证安装
 
 ```shell
-# 安装gocv包
+# 安装gocv包，先mod init
+go mod init opencv
 go get -u github.com/LKKlein/gocv
 
 # 验证安装结果
@@ -136,7 +137,7 @@ git checkout v1.8.4
 
 # 目前版本无论单卡还是多卡都需要先安装nccl
 git clone https://github.com/NVIDIA/nccl.git
-make -j4
+make -j8
 make install
 ```
 
