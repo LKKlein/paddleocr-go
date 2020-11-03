@@ -273,7 +273,7 @@ cp -r ~/paddle/build/fluid_inference_c_install_dir/* paddle_c/
 - 编译demo
 
 ```shell
-go build paddleocr.go
+go build demo.go
 ```
 
 ### 3.3 执行预测demo
@@ -283,7 +283,7 @@ go build paddleocr.go
 #### 3.3.1 单张图预测
 
 ```shell
-./paddleocr --config config/conf.yaml --image images/test.jpg
+./demo --config config/conf.yaml --image images/test.jpg
 ```
 
 执行完成，会输出以下内容：
@@ -293,7 +293,7 @@ go build paddleocr.go
 #### 3.3.2 文件夹批量预测
 
 ```shell
-./paddleocr --config config/conf.yaml --image_dir ./images
+./demo --config config/conf.yaml --image_dir ./images
 ```
 
 执行完成，会输出以下内容：
@@ -303,7 +303,7 @@ go build paddleocr.go
 #### 3.3.3 开启OCR Server
 
 ```shell
-./paddleocr --use_servering --port=18600
+./demo --use_servering --port=18600
 ```
 
 开启服务后，可以在其他客户端中通过`post`请求进行ocr预测。此处以`Python`客户端为例，如下所示
