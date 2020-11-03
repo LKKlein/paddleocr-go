@@ -1,5 +1,6 @@
 paddle_cxx/paddle
 paddle_cxx/third_party
 paddle_cxx/version.txt
+paddle_cxx/CMakeCache.txt
 inference/
 demo

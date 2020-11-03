@@ -170,9 +170,6 @@ func (sys *TextPredictSystem) Run(img gocv.Mat) []OCRText {
 		cropimages = sys.cls.Run(cropimages)
 	}
 	recResult := sys.rec.Run(cropimages, boxes)
-	for _, v := range recResult {
-		log.Println(v)
-	}
 	return recResult
 }
 

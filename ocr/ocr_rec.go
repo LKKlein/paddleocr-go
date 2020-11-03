@@ -86,7 +86,6 @@ func (rec *TextRecognizer) Run(imgs []gocv.Mat, bboxes [][][]int) []OCRText {
 
 		recIdxBatch := rec.outputs[0].Value().([][]int64)
 		recIdxLod := rec.outputs[0].Lod()
-		log.Println("rec lod: ", recIdxLod, "rec len: ", len(recIdxLod))
 
 		predictBatch := rec.outputs[1].Value().([][]float32)
 		predictLod := rec.outputs[1].Lod()
