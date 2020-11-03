@@ -2,4 +2,4 @@ paddle_c/paddle
 paddle_c/third_party
 paddle_c/version.txt
 inference/
-test
+demo
